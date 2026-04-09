@@ -1,34 +1,70 @@
-
-
-import cors from "cors";
 import express from "express";
 import fs from "fs";
 import path from "path";
+import cors from "cors";
+import { parseFile } from "music-metadata";
 
 const app = express();
 app.use(cors());
 
-const MEDIA_DIR = "C:/Users/YOUR_NAME/Music"; // change this
+let CURRENT_DIR = null;
 
-// Get all media files
-app.get("/api/files", (req, res) => {
-  fs.readdir(MEDIA_DIR, (err, files) => {
-    if (err) return res.status(500).json({ error: err.message });
+// 📂 recursive scan
+async function scanDir(dir) {
+  let results = [];
 
-    const mediaFiles = files.filter(file =>
-      file.endsWith(".mp3") ||
-      file.endsWith(".mp4") ||
-      file.endsWith(".wav")
-    );
+  const list = fs.readdirSync(dir);
 
-    res.json(mediaFiles);
-  });
+  for (const file of list) {
+    const full = path.join(dir, file);
+    const stat = fs.statSync(full);
+
+    if (stat.isDirectory()) {
+      results = results.concat(await scanDir(full));
+    } else if (/\.(mp3|wav|flac|mp4|mkv)$/i.test(file)) {
+      results.push(full);
+    }
+  }
+
+  return results;
+}
+
+// 🎵 metadata
+async function enrich(file) {
+  try {
+    const meta = await parseFile(file);
+
+    return {
+      path: file,
+      title: meta.common.title || path.basename(file),
+      artist: meta.common.artist || "Unknown",
+      album: meta.common.album || "Unknown",
+      picture: meta.common.picture?.[0]?.data?.toString("base64"),
+      type: /\.(mp4|mkv)$/i.test(file) ? "video" : "audio"
+    };
+  } catch {
+    return { path: file, title: path.basename(file), type: "audio" };
+  }
+}
+
+// 📡 scan endpoint
+app.get("/scan", async (req, res) => {
+  const dir = req.query.dir;
+
+  if (!dir) return res.status(400).send("No dir");
+
+  CURRENT_DIR = dir;
+
+  const files = await scanDir(dir);
+  const enriched = await Promise.all(files.map(enrich));
+
+  res.json(enriched);
 });
 
-// Stream file
-app.get("/api/play/:name", (req, res) => {
-  const filePath = path.join(MEDIA_DIR, req.params.name);
-  res.sendFile(filePath);
+// ▶️ stream
+app.get("/media", (req, res) => {
+  const file = req.query.path;
+  fs.createReadStream(file).pipe(res);
 });
 
-app.listen(5000, () => console.log("Server running on port 5000"));
+app.listen(3001, () => console.log("Server running"));
