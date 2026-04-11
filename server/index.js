@@ -7,8 +7,7 @@ import { parseFile } from "music-metadata";
 const app = express();
 app.use(cors());
 
-let CURRENT_DIR = null;
-
+let CURRENT_DIR = "C:/Users/Administrator/Downloads/DJ-Video-Mixes";
 // 📂 recursive scan
 async function scanDir(dir) {
   let results = [];
