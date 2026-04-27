@@ -73,8 +73,8 @@ export default function App() {
   }
 
   function playFromQueue(i) {
-    setCurrent(queue[i]);
-  }
+  setCurrent(queue[i]); // autoplay happens in Player
+}
 
   function playNext() {
     if (queue.length === 0) return;
@@ -82,6 +82,17 @@ export default function App() {
     setCurrent(next);
     setQueue(rest);
   }
+
+  function playPrevious() {
+  if (queue.length === 0) return;
+
+  setQueue((q) => {
+    const last = q[q.length - 1];
+    return q.slice(0, -1);
+  });
+
+  setCurrent(queue[queue.length - 1]);
+}
 
   // =========================
   // 📃 PLAYLIST SYSTEM
@@ -193,7 +204,12 @@ export default function App() {
       {/* ================= MAIN ================= */}
       <div className="flex-1 flex flex-col">
 
-        <Player track={current} onEnd={playNext} />
+       <Player
+  track={current}
+  onEnd={playNext}
+  onNext={playNext}
+  onPrev={playPrevious}
+/>
 
         {/* PLAYLIST VIEW */}
         {selectedPlaylist && (

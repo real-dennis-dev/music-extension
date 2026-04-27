@@ -4,11 +4,13 @@ import WaveSurfer from "wavesurfer.js";
 export default function Player({ track }) {
   const waveRef = useRef(null);
   const wsRef = useRef(null);
-
+const videoRef = useRef(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
 
+  const [hoverTime, setHoverTime] = useState(null);
+const [hoverX, setHoverX] = useState(0);
   // 🎵 load track
   useEffect(() => {
     if (!track || track.type === "video") return;
@@ -28,8 +30,11 @@ export default function Player({ track }) {
     ws.load(`http://localhost:3001/media?path=${encodeURIComponent(track.path)}`);
 
     ws.on("ready", () => {
-      setDuration(ws.getDuration());
-    });
+  setDuration(ws.getDuration());
+
+  ws.play();                 // ✅ autoplay
+  setIsPlaying(true);        // sync state
+});
 
     ws.on("audioprocess", () => {
       setCurrentTime(ws.getCurrentTime());
@@ -71,6 +76,36 @@ export default function Player({ track }) {
     return () => window.removeEventListener("keydown", handleKey);
   }, [duration]);
 
+  //Mouse Effects
+  useEffect(() => {
+  if (!wsRef.current) return;
+
+  const container = waveRef.current;
+
+  function handleMove(e) {
+    const rect = container.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const percent = x / rect.width;
+
+    const time = percent * duration;
+
+    setHoverTime(time);
+    setHoverX(x);
+  }
+
+  function leave() {
+    setHoverTime(null);
+  }
+
+  container.addEventListener("mousemove", handleMove);
+  container.addEventListener("mouseleave", leave);
+
+  return () => {
+    container.removeEventListener("mousemove", handleMove);
+    container.removeEventListener("mouseleave", leave);
+  };
+}, [duration]);
+
   function togglePlay() {
     wsRef.current.playPause();
     setIsPlaying(wsRef.current.isPlaying());
@@ -103,10 +138,24 @@ export default function Player({ track }) {
           )}
 
           {/* Waveform */}
+          <div className="relative">
           <div ref={waveRef} className="mb-4"></div>
+          {hoverTime !== null && (
+              <div
+                className="absolute bg-black text-white text-xs px-2 py-1 rounded"
+                style={{
+                  left: hoverX,
+                  top: -20
+                }}
+              >
+                {formatTime(hoverTime)}
+              </div>
+            )}
+          </div>
 
           {/* Controls */}
           <div className="flex items-center gap-4">
+            <button onClick={onPrev}>⏮</button>
             <button
               onClick={() =>
                 wsRef.current.seekTo(
@@ -133,6 +182,7 @@ export default function Player({ track }) {
             >
               ⏩
             </button>
+            <button onClick={onNext}>⏭</button>
           </div>
 
           {/* Time */}
@@ -142,11 +192,36 @@ export default function Player({ track }) {
           </div>
         </>
       ) : (
+        <>
         <video
-          controls
-          className="w-full mt-4"
-          src={`http://localhost:3001/media?path=${encodeURIComponent(track.path)}`}
-        />
+  ref={videoRef}
+  className="w-full mt-4"
+  src={`http://localhost:3001/media?path=${encodeURIComponent(track.path)}`}
+/>
+
+<div className="flex gap-3 mt-2">
+  <button onClick={onPrev}>⏮</button>
+
+  <button onClick={() => videoRef.current.currentTime -= 5}>
+    ⏪
+  </button>
+
+  <button onClick={() => {
+    if (videoRef.current.paused) {
+      videoRef.current.play();
+    } else {
+      videoRef.current.pause();
+    }
+  }}>
+    ▶ / ⏸
+  </button>
+
+  <button onClick={() => videoRef.current.currentTime += 5}>
+    ⏩
+  </button>
+
+  <button onClick={onNext}>⏭</button>
+</div> </>
       )}
     </div>
   );
